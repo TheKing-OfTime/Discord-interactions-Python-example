@@ -1,4 +1,5 @@
 import requests
+import discord
 from discord.ext import commands
 from scr.Lib import TOKENS
 
@@ -97,6 +98,12 @@ async def CreateSlashCommand(name:str, description:str, options:list, default_pe
             "Content-Type": "application/json"
         })
     print(r.status_code, "\n", r.content)
+
+async def toggle_role(member:discord.Member, role:discord.Role):
+    if role in member.roles:
+        await member.remove_roles(role, reason="По требованию пользователя")
+    else:
+        await member.add_roles(role, reason="По требованию пользователя")
 
 class Main(commands.Cog):
     def __init__(self, bot):
@@ -279,6 +286,10 @@ class Main(commands.Cog):
 
 
     @commands.Cog.listener()
+    async def on_ready(self):
+        print("ready")
+
+    @commands.Cog.listener()
     async def on_socket_response(self, msg):
         if msg["t"] == 'INTERACTION_CREATE':
 
@@ -354,6 +365,11 @@ class Main(commands.Cog):
                     selection_id = msg["d"]["data"]["custom_id"]
                     if selection_id == "role_selection":
                         content = f"Выбранные роли установленны"
+                        guild = await bot.fetch_guild(guild_id)
+                        member = await guild.fetch_member(member_id)
+                        for role in values:
+                            role = guild.get_role(int(role))
+                            await toggle_role(member, role)
                     else:
                         content = f"You have chosen these selections: {values}"
             elif interaction_type == 2:
