@@ -1,12 +1,12 @@
 import requests
 from discord.ext import commands
+from scr.Lib import TOKENS
 
 
 bot = commands.Bot(command_prefix="t!")
 
 
-TOKENS = []
-TOKEN = TOKENS[1]
+TOKEN = TOKENS[0]
 
 channel_id = 453272494724349963
 
@@ -153,22 +153,34 @@ class Main(commands.Cog):
         lst = []
         options1 = []
         options2 = []
+        e_name = None
+        e_id = None
         for role in ctx.guild.roles:
-            if str(role.colour) == "#4dc1e9":
+            if str(role.colour) == "#4dc1e9" or str(role.colour) == "#c7a6fb" or str(role.colour) == "#3498db":
                 lst.append(role)
             lst.sort()
 
         for role in lst:
+            if str(role.colour) == "#4dc1e9":
+                e_name = "game"
+                e_id = "850363704742903819"
+            elif str(role.colour) == "#3498db":
+                e_name = "ganre"
+                e_id = "850363722487955486"
+            elif str(role.colour) == "#c7a6fb":
+                e_name = "forts"
+                e_id = "869133402631188521"
+
             if len(options1) < 25:
-                options1.append(SelectOption(role.name, role.name.lower(), e_name="game", e_id="850363704742903819"))
+                options1.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id))
             else:
-                options2.append(SelectOption(role.name, role.name.lower(), e_name="game", e_id="850363704742903819"))
+                options2.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id))
 
         response = requests.request("POST", f"https://discord.com/api/v9/channels/{ctx.channel.id}/messages",
                                     json =
 
                                     {
-                                        "content": "Игровые роли",
+                                        "content": f"Игровые роли (Страница {arg} из 2)",
                                         "components": [ActionRaw([
                                             SelectMenu(
                                                 "role_selection",
@@ -262,7 +274,7 @@ class Main(commands.Cog):
     @commands.command(aliases=["createSC"])
     @commands.check(commands.is_owner())
     async def CreateSlashCommand(self, ctx, name, *, description):
-        await CreateSlashCommand(name, description, None)
+        await CreateSlashCommand(name, description, None, SlashCommandOption(4, "Страница", "Выберите страницу", choices=[{"name": 1, "value": "1"}, {"name": 2, "value": "2"}]))
         await ctx.send("done")
 
 
@@ -272,81 +284,91 @@ class Main(commands.Cog):
 
             interaction_id      = msg["d"]["id"]
             interaction_token   = msg["d"]["token"]
-            interaction_type    = msg["d"]["data"]["component_type"]
-            member_id           = msg["d"]["member"]["user"]["id"]
-            message_id          = msg["d"]["message"]["id"]
-            message_content     = msg["d"]["message"]["content"]
-            guild_id            = msg["d"]["guild_id"]
-            channel_id          = msg["d"]["message"]["channel_id"]
-
+            interaction_type    = msg["d"]["type"]
 
             json_ = None
             content = None
-
+            type_ = 4
             print(interaction_type)
 
-            if interaction_type == 2:
+            if interaction_type == 3:
+                component_type  = msg["d"]["data"]["component_type"]
+                member_id       = msg["d"]["member"]["user"]["id"]
+                message_id      = msg["d"]["message"]["id"]
+                message_content = msg["d"]["message"]["content"]
+                guild_id        = msg["d"]["guild_id"]
+                channel_id      = msg["d"]["message"]["channel_id"]
 
-                button_id = msg["d"]["data"]['custom_id']
 
-                if button_id == "click_yes":
-                    content = "Голос учтён!"
 
-                    print(self.bot.get_user(member_id) or await self.bot.fetch_user(member_id), "Да")
+                if component_type == 2:
 
-                    json_ = {
-                        "type": 7,
-                        "data": {
-                            "flags": 64,
-                            "components":
-                            [
-                                ActionRaw([
-                                    Button("Да", 3, custom_id="click_yes", disabled = True),
-                                    Button("Нет", 2, custom_id="click_no", disabled = True )
-                                ])
-                            ]
+                    button_id = msg["d"]["data"]['custom_id']
 
+                    if button_id == "click_yes":
+                        content = "Голос учтён!"
+
+                        print(self.bot.get_user(member_id) or await self.bot.fetch_user(member_id), "Да")
+
+                        json_ = {
+                            "type": 7,
+                            "data": {
+                                "flags": 64,
+                                "components":
+                                [
+                                    ActionRaw([
+                                        Button("Да", 3, custom_id="click_yes", disabled = True),
+                                        Button("Нет", 2, custom_id="click_no", disabled = True )
+                                    ])
+                                ]
+
+                            }
                         }
-                    }
 
-                elif button_id == "click_no":
-                    content = "Голос учтён!"
-                    print(self.bot.get_user(member_id) or await self.bot.fetch_user(member_id), "Нет")
-                    json_ = {
-                        "type": 7,
-                        "data": {
-                            "flags": 64,
-                            "components":
-                            [
-                                ActionRaw([
-                                    Button("Да", 2, custom_id="click_yes", disabled = True),
-                                    Button("Нет", 4, custom_id="click_no", disabled = True )
-                                ])
-                            ]
+                    elif button_id == "click_no":
+                        content = "Голос учтён!"
+                        print(self.bot.get_user(member_id) or await self.bot.fetch_user(member_id), "Нет")
+                        json_ = {
+                            "type": 7,
+                            "data": {
+                                "flags": 64,
+                                "components":
+                                [
+                                    ActionRaw([
+                                        Button("Да", 2, custom_id="click_yes", disabled = True),
+                                        Button("Нет", 4, custom_id="click_no", disabled = True )
+                                    ])
+                                ]
 
+                            }
                         }
-                    }
 
-                elif button_id == "click_button_default":
-                    content = "Clicked!"
+                    elif button_id == "click_button_default":
+                        content = "Clicked!"
 
-                else:
-                    content = f"Clicked! ID = {button_id}"
+                    else:
+                        content = f"Clicked! ID = {button_id}"
 
-            elif interaction_type == 3:
-                values = msg["d"]["data"]["values"]
-                selection_id = msg["d"]["data"]["custom_id"]
-                if selection_id == "role_selection":
-                    content = f"Выбранные роли установленны"
-                else:
-                    content = f"You have chosen these selections: {values}"
+                elif component_type == 3:
+                    values = msg["d"]["data"]["values"]
+                    selection_id = msg["d"]["data"]["custom_id"]
+                    if selection_id == "role_selection":
+                        content = f"Выбранные роли установленны"
+                    else:
+                        content = f"You have chosen these selections: {values}"
+            elif interaction_type == 2:
+                name = msg["d"]["data"]["name"]
+                if name == "ping":
+                    content = f"`{round(bot.latency * 1000, 2)}`"
+                if name == "role":
+                    pass
 
             url = f"https://discord.com/api/v9/interactions/{interaction_id}/{interaction_token}/callback"
             if content is not None:
 
                 if json_ is None:
                     json_ = {
-                        "type": 4,
+                        "type": type_,
                         "data": {
                             "content": content,
                             "flags": 64,
