@@ -156,13 +156,19 @@ class Main(commands.Cog):
                                                 "Content-Type": "application/json"})
 
     @commands.command(aliases=["r"])
-    async def role(self, ctx: commands.Context, arg = "1"):
+    async def role(self, ctx, arg = "1"):
         lst = []
         options1 = []
         options2 = []
         e_name = None
         e_id = None
-        for role in ctx.guild.roles:
+        if type(ctx) is not commands.Context:
+            channel_id = ctx['channel_id']
+            guild = await bot.fetch_guild(ctx['guild_id'])
+        else:
+            channel_id = ctx.channel.id
+            guild = ctx.guild
+        for role in guild.roles:
             if str(role.colour) == "#4dc1e9" or str(role.colour) == "#c7a6fb" or str(role.colour) == "#3498db":
                 lst.append(role)
             lst.sort()
@@ -183,25 +189,29 @@ class Main(commands.Cog):
             else:
                 options2.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id))
 
-        response = requests.request("POST", f"https://discord.com/api/v9/channels/{ctx.channel.id}/messages",
-                                    json =
+        json = {
+            "content": f"Игровые роли (Страница {arg} из 2)",
+            "components": [ActionRaw([
+                SelectMenu(
+                    "role_selection",
+                    "Выберите любые интересующие вас роли",
+                    max_values=len(options1 if arg == "1" else options2),
+                    options=options1 if arg == "1" else options2
+                )
+            ])]
 
-                                    {
-                                        "content": f"Игровые роли (Страница {arg} из 2)",
-                                        "components": [ActionRaw([
-                                            SelectMenu(
-                                                "role_selection",
-                                                "Выберите любые интересующие вас роли",
-                                                max_values=len(options1 if arg == "1" else options2),
-                                                options=options1 if arg == "1" else options2
-                                            )
-                                        ])]
+        }
 
-                                    }
-                                    ,
-                                    headers = { "Authorization": f"Bot {TOKEN}",
-                                                "Content-Type": "application/json"})
-        print(response.status_code, response.content if response.status_code != 200 else "")
+        if type(ctx) is commands.Context:
+
+            response = requests.request("POST", f"https://discord.com/api/v9/channels/{channel_id}/messages",
+                                        json = json
+                                        ,
+                                        headers = { "Authorization": f"Bot {TOKEN}",
+                                                    "Content-Type": "application/json"})
+            print(response.status_code, response.content if response.status_code != 200 else "")
+        else:
+            return json
 
     @commands.command()
     async def vote(self, ctx: commands.Context, *, text:str):
@@ -281,7 +291,7 @@ class Main(commands.Cog):
     @commands.command(aliases=["createSC"])
     @commands.check(commands.is_owner())
     async def CreateSlashCommand(self, ctx, name, *, description):
-        await CreateSlashCommand(name, description, None, SlashCommandOption(4, "Страница", "Выберите страницу", choices=[{"name": 1, "value": "1"}, {"name": 2, "value": "2"}]))
+        await CreateSlashCommand(name, description, [SlashCommandOption(4, "страница", "Выберите страницу", choices=[{"name": "1", "value": 1}, {"name": "2", "value": 2}])])
         await ctx.send("done")
 
 
@@ -300,17 +310,13 @@ class Main(commands.Cog):
             json_ = None
             content = None
             type_ = 4
+            data_ = None
             print(interaction_type)
 
             if interaction_type == 3:
                 component_type  = msg["d"]["data"]["component_type"]
                 member_id       = msg["d"]["member"]["user"]["id"]
-                message_id      = msg["d"]["message"]["id"]
-                message_content = msg["d"]["message"]["content"]
                 guild_id        = msg["d"]["guild_id"]
-                channel_id      = msg["d"]["message"]["channel_id"]
-
-
 
                 if component_type == 2:
 
@@ -373,29 +379,38 @@ class Main(commands.Cog):
                     else:
                         content = f"You have chosen these selections: {values}"
             elif interaction_type == 2:
-                name = msg["d"]["data"]["name"]
+                guild_id      = msg["d"]["guild_id"]
+                channel_id  = msg["d"]["channel_id"]
+                name        = msg["d"]["data"]["name"]
                 if name == "ping":
                     content = f"`{round(bot.latency * 1000, 2)}`"
                 if name == "role":
-                    pass
+                    try:
+                        value = msg["d"]["data"]["options"][0]["value"]
+                    except:
+                        value = '1'
+                    data_ = await self.role({"guild_id": guild_id, "channel_id": channel_id}, value)
+                type_ = 4
+                content = False
 
             url = f"https://discord.com/api/v9/interactions/{interaction_id}/{interaction_token}/callback"
+            if not data_:
+                data = {
+                    "content": content,
+                    "flags": 64
+                }
+            else:
+                data = data_
+
             if content is not None:
 
                 if json_ is None:
                     json_ = {
                         "type": type_,
-                        "data": {
-                            "content": content,
-                            "flags": 64,
-
-                        }
+                        "data": data
                     }
                 requests.post(url, json=json_)
 
 
 bot.add_cog(Main(bot))
 bot.run(TOKEN)
-
-
-
