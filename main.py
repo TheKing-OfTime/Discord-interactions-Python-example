@@ -291,7 +291,9 @@ class Main(commands.Cog):
     @commands.command(aliases=["createSC"])
     @commands.check(commands.is_owner())
     async def CreateSlashCommand(self, ctx, name, *, description):
-        await CreateSlashCommand(name, description, [SlashCommandOption(4, "страница", "Выберите страницу", choices=[{"name": "1", "value": 1}, {"name": "2", "value": 2}])])
+        await CreateSlashCommand(name, description, [SlashCommandOption(4, "страница", "Выберите страницу", choices=[{"name": "1", "value": 1}, {"name": "2", "value": 2}]),
+                                                     SlashCommandOption(8, "роль", "Выберите конкретную роль")
+                                                     ])
         await ctx.send("done")
 
 
@@ -306,6 +308,7 @@ class Main(commands.Cog):
             interaction_id      = msg["d"]["id"]
             interaction_token   = msg["d"]["token"]
             interaction_type    = msg["d"]["type"]
+            print(msg["d"]["data"])
 
             json_ = None
             content = None
@@ -390,8 +393,8 @@ class Main(commands.Cog):
                     except:
                         value = '1'
                     data_ = await self.role({"guild_id": guild_id, "channel_id": channel_id}, value)
-                type_ = 4
-                content = False
+                    type_ = 4
+                    content = False
 
             url = f"https://discord.com/api/v9/interactions/{interaction_id}/{interaction_token}/callback"
             if not data_:
