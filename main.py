@@ -99,11 +99,35 @@ async def CreateSlashCommand(name:str, description:str, options:list, default_pe
         })
     print(r.status_code, "\n", r.content)
 
-async def toggle_role(member:discord.Member, role:discord.Role):
-    if role in member.roles:
-        await member.remove_roles(role, reason="По требованию пользователя")
-    else:
-        await member.add_roles(role, reason="По требованию пользователя")
+async def toggle_role(member:discord.Member, values, arg = '1'):
+    roles_to_add = []
+    lst = []
+    for role in member.guild.roles:
+        if str(role.colour) == "#4dc1e9" or str(role.colour) == "#c7a6fb" or str(role.colour) == "#3498db":
+            lst.append(role)
+        lst.sort()
+
+    if arg == '1':
+        lst = lst[:24]
+    else: lst = lst[25:]
+
+
+    roles_to_remove = lst
+
+    for role_id in values:
+        role = member.guild.get_role(int(role_id))
+        if role not in member.roles:
+            roles_to_add.append(role)
+            roles_to_remove.remove(role)
+        else:
+            roles_to_remove.remove(role)
+
+    for role in roles_to_remove:
+        if role not in member.roles:
+            roles_to_remove.remove(role)
+
+    await member.add_roles(*roles_to_add, reason="По требованию пользователя")
+    await member.remove_roles(*roles_to_remove, reason="По требованию пользователя")
 
 class Main(commands.Cog):
     def __init__(self, bot):
@@ -156,18 +180,23 @@ class Main(commands.Cog):
                                                 "Content-Type": "application/json"})
 
     @commands.command(aliases=["r"])
-    async def role(self, ctx, arg = "1"):
+    async def role(self, ctx, arg = "1", ephemerial=False):
         lst = []
         options1 = []
         options2 = []
         e_name = None
         e_id = None
+        roles_to_clearing = []
+
         if type(ctx) is not commands.Context:
             channel_id = ctx['channel_id']
             guild = await bot.fetch_guild(ctx['guild_id'])
+            member = await guild.fetch_member(ctx['member_id'])
         else:
             channel_id = ctx.channel.id
             guild = ctx.guild
+            member = ctx.author
+
         for role in guild.roles:
             if str(role.colour) == "#4dc1e9" or str(role.colour) == "#c7a6fb" or str(role.colour) == "#3498db":
                 lst.append(role)
@@ -184,21 +213,35 @@ class Main(commands.Cog):
                 e_name = "forts"
                 e_id = "869133402631188521"
 
-            if len(options1) < 25:
-                options1.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id))
+            if not ctx["clearing"]:
+                is_have = role in member.roles
             else:
-                options2.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id))
+                if role in member.roles:
+                    roles_to_clearing.append(role)
+                is_have = False
+
+            if len(options1) < 25:
+                options1.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id, default = is_have))
+            else:
+                options2.append(SelectOption(role.name, role.id, e_name=e_name, e_id=e_id, default = is_have))
+
+        if ctx["clearing"]:
+            await member.remove_roles(*roles_to_clearing, reason="По требованию пользователя")
 
         json = {
             "content": f"Игровые роли (Страница {arg} из 2)",
             "components": [ActionRaw([
                 SelectMenu(
-                    "role_selection",
+                    f"role_selection {arg}",
                     "Выберите любые интересующие вас роли",
                     max_values=len(options1 if arg == "1" else options2),
                     options=options1 if arg == "1" else options2
                 )
-            ])]
+            ]),
+            ActionRaw([
+                Button("Сбросить роли", 4, custom_id = f"clear_roles {arg}")
+            ])],
+            "flags": 64 if ephemerial else None
 
         }
 
@@ -320,6 +363,7 @@ class Main(commands.Cog):
                 component_type  = msg["d"]["data"]["component_type"]
                 member_id       = msg["d"]["member"]["user"]["id"]
                 guild_id        = msg["d"]["guild_id"]
+                channel_id  = msg["d"]["channel_id"]
 
                 if component_type == 2:
 
@@ -366,23 +410,40 @@ class Main(commands.Cog):
                     elif button_id == "click_button_default":
                         content = "Clicked!"
 
+                    elif button_id.startswith("clear_roles"):
+                        value = button_id.split(' ')[1]
+                        data_ = await self.role({"guild_id": guild_id, "channel_id": channel_id, "member_id": member_id, "clearing": True}, value, ephemerial=True)
+                        type_ = 7
+                        content = False
+
                     else:
                         content = f"Clicked! ID = {button_id}"
 
                 elif component_type == 3:
                     values = msg["d"]["data"]["values"]
                     selection_id = msg["d"]["data"]["custom_id"]
-                    if selection_id == "role_selection":
+                    if selection_id.startswith("role_selection"):
+                        value = selection_id.split(' ')[1]
                         content = f"Выбранные роли установленны"
                         guild = await bot.fetch_guild(guild_id)
                         member = await guild.fetch_member(member_id)
-                        for role in values:
-                            role = guild.get_role(int(role))
-                            await toggle_role(member, role)
+                        url = f"https://discord.com/api/v9/interactions/{interaction_id}/{interaction_token}/callback"
+                        r = requests.post(url, json={
+                            "data":{
+                                "content" : content,
+                                "flags": 64,
+                            },
+                            "type": 4
+                        })
+                        content = None
+
+                        await toggle_role(member, values, value)
                     else:
                         content = f"You have chosen these selections: {values}"
+                    print(content)
             elif interaction_type == 2:
-                guild_id      = msg["d"]["guild_id"]
+                guild_id    = msg["d"]["guild_id"]
+                member_id   = msg["d"]["member"]["user"]["id"]
                 channel_id  = msg["d"]["channel_id"]
                 name        = msg["d"]["data"]["name"]
                 if name == "ping":
@@ -392,7 +453,7 @@ class Main(commands.Cog):
                         value = msg["d"]["data"]["options"][0]["value"]
                     except:
                         value = '1'
-                    data_ = await self.role({"guild_id": guild_id, "channel_id": channel_id}, value)
+                    data_ = await self.role({"guild_id": guild_id, "channel_id": channel_id, "member_id": member_id, "clearing": False}, value, ephemerial=True)
                     type_ = 4
                     content = False
 
@@ -412,7 +473,8 @@ class Main(commands.Cog):
                         "type": type_,
                         "data": data
                     }
-                requests.post(url, json=json_)
+                r = requests.post(url, json=json_)
+                print(r.content)
 
 
 bot.add_cog(Main(bot))
